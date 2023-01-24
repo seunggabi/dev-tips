@@ -104,13 +104,40 @@ Rust의 컴파일 에러 메시지는 상당히 구체적이고 친절하다.
             
             let t1 = (23, "Jordan");  // "Jordan"은 힙에 생성되지 않음
             let t2 = t1;  // 스택 안에서 값이 통째로 복사
-            let t1_1_len = t1.1.len();  // t1 튜플의 두 번째(첫 번째는 0) 원소의 길이
+            let t1_1_len = t1.1.len();  // t1 튜플의 두 번째(튜플 인덱스는 0부터 시작) 원소의 길이
 
             println!("t1_1_len() is {}", t1_1_len);
             println!("t2.1.len() is {}", t2.1.len());
         }
         ```
+        
+- Non Copy Type인 String이 포함된 튜플은 Non Copy Type이 된다.
 
+    ```rust
+    fn main() {
+        let t1 = (23, String::from("Jordan"));  // String::from("Jordan")은 힙에 생성되는 Non Copy Type -> 이를 포함하는 튜플도 Non Copy Type
+        let t2 = t1;  // t1이 Non Copy Type이므로 값 복사가 아니라 Ownership이 이전
+        let t1_0 = t1.0;  // Ownership이 이전되어 Uninitialized된 t1 튜플을 참조하면서 컴파일 에러 발생
+
+        println!("t1_0 is {}", t1_0);
+        println!("t2 is {:?}", t2);
+    }
+
+
+       Compiling playground v0.0.1 (/playground)
+    error[E0382]: use of moved value: `t1`
+     --> src/main.rs:4:16
+      |
+    2 |     let t1 = (23, String::from("Jordan"));  // String::from("Jordan")은 힙에 생성되는 Non Copy Type -> 이를 포함하는 튜플도 Non Copy Type             ...
+      |         -- move occurs because `t1` has type `(i32, String)`, which does not implement the `Copy` trait
+    3 |     let t2 = t1;  // t1이 Non Copy Type이므로 값 복사가 아니라 Ownership이 이전
+      |              -- value moved here
+    4 |     let t1_0 = t1.0;  // Ownership이 없어 Uninitialized된 t1 튜플을 참조하면서 컴파일 에러 발생
+      |                ^^^^ value used here after move
+
+    For more information about this error, try `rustc --explain E0382`.
+    error: could not compile `playground` due to previous error
+    ```
 
 - **다른 변수에 할당할 때뿐아니라 함수에 인자로 넘길 때도, 함수에서 값을 반환할 때도 Ownership이 넘어간다.** 그래서 아래와 같이 함수에 인자로 넘기면서 이미 Ownership을 잃은 변수 name1을 다시 사용하는 코드는 컴파일 에러가 발생한다.  
 Rust의 컴파일 에러 메시지는 볼 수록 매력적이다.
@@ -236,7 +263,7 @@ error[E0502]: cannot borrow `str` as immutable because it is also borrowed as mu
 
 ## Rc, Arc
 
-Rust에서는 **Owner는 단 하나** 원칙을 지키기 위해 Copy 타입이 아닌 변수는 할당, 인자 전달, 반환에서 복사가 아니라 이동된다. 하지만 필요하다면 `Rc<T>`, `Arc<T>`를 사용해서, 이동이 아니라 파이썬처럼 Reference count를 통해 다수의 Owner를 허용할 수도 있다. `Arc`는 Atomic Reference Count이며 Thread-safe를 보장한다.
+Rust에서는 **Owner는 단 하나** 원칙을 지키기 위해 Copy 타입이 아닌 변수는 할당, 인자 전달, 반환에서 복사가 아니라 Ownership이 이동된다. 하지만 필요하다면 `Rc<T>`, `Arc<T>`를 사용해서, 이동이 아니라 파이썬처럼 Reference count를 통해 다수의 Owner를 허용할 수도 있다. `Arc`는 Atomic Reference Count이며 Thread-safe를 보장한다.
 
 다음 코드에서 t, u는 `clone()`을 통해 생성되지만 인스턴스 자체가 복제되는 게 아니라 `Rc<string>`에 대한 참조만 복제된다. 따라서 s, t, u는 모두 힙에 생성된 동일한 `Rc<string>` 타입 인스턴스를 가리키며, 이 인스턴스의 Reference count는 3이 되고, 0이 되면 이 인스턴스는 메모리에서 사라진다.
 
@@ -262,20 +289,20 @@ fn main() {
         let short_lived_int = 3;
         out_live_ref = &short_lived_int;  // 1. `&short_lived_int`는 자신이 할당된 out_live_ref 보다 일찍 소멸한다.
     }
-    println!("{}", *out_live_ref);  // 2. `out_live_ref`는 Owner인 a가 소멸한 후에 사용되고 있다.
+    println!("{}", *out_live_ref);  // 2. `out_live_ref`는 Owner인 `short_lived_int`가 소멸한 후에 사용되고 있다.
 }
 ```
 
 위 코드에서 `short_lived_int`는 Owner이고, `&short_lived_int`와 `out_live_ref`는 참조다.
 참조가 안전하게 사용된다는 것은 아래의 2가지 제약사항을 모두 준수한다는 것을 의미한다.  
-- 주석 1에 나타난 것처럼, **참조는 적어도 참조 자신이 할당된 변수(`out_live_ref`)의 생존 기간만큼 살아남아야 한다. (최소 한도)**
-- 주석 2에 나타난 것처럼, **참조는 길어도 참조 자신이 빌려온 Owner(`short_lived_int`)의 생존 기간보다 오래 살아남으면 안 된다. (최대 한도)**
+- 주석 1에 나타난 것처럼, **참조(여기서는 `&short_lived_int`)는 적어도 참조 자신이 할당된 변수(`out_live_ref`)의 생존 기간만큼 살아남아야 한다. (최소 한도)**
+- 주석 2에 나타난 것처럼, **참조(여기서는 `out_live_ref`)는 길어도 참조 자신이 가리키는 값의 Owner(`short_lived_int`)의 생존 기간보다 오래 살아남으면 안 된다. (최대 한도)**
 
 위 코드는 위 2가지 사항을 모두 만족하지 못하므로 안전하지 못한 참조를 사용하고 있으며 따라서 컴파일 에러가 발생한다. 두 가지 관점에서 살펴봤지만 결론은 사실 한 가지다. `out_live_ref`가 dangling reference가 된다는 것이다. 결국 **lifetime은 dangling reference가 발생하지 않게 해주는 장치**라고 할 수 있다. 그리고 **참조를 사용하는 함수, 메서드, struct, trait 등의 lifetime을 컴파일러에 알려줘야 컴파일러가 컴파일 타임에 dangling reference 발생 여부를 판단할 수 있게 된다. lifetime을 컴파일러에 명시적으로 알려주는 것이 바로 lifetime parameter다.**
 
 따라서 **함수(또는 메서드, struct, trait 등)의 정의에 lifetime 파라미터가 붙어있고 컴파일이 성공되었다면, 그 함수(또는 메서드, struct, trait 등)에서는 dangling reference가 발생하지 않음을 컴파일러가 보장해준다는 것이 lifetime 파라미터의 효용**이라고 볼 수 있다.
 
-lifetime parameter도 **제네릭 타입 파라미터처럼 `<'a>`와 같은 형식으로 표기**되는데, 제네릭으로 타입을 알려주는 것이 아니라 **제네릭으로 lifetime을 알려주는 것이다.**
+lifetime parameter도 **제네릭 타입 파라미터처럼 꺽쇠를 써서 `<'a>`와 같은 형식으로 표기**되는데, 제네릭으로 타입을 알려주는 것이 아니라 **제네릭으로 lifetime을 알려주는 것이다.**
 
 lifetime parameter는 C, C++, Java 등 다른 언어에 없는 개념이라 금방 와닿지가 않는다. 먼저 함수에 명시하는 lifetime parameter를 통해 감을 잡아보자.
 
@@ -290,7 +317,7 @@ fn my_fun<'a>(r: &'a i32) -> &'a i32 {
 ```
 
 - `'a`(tick A라고 읽는다)는 함수 my_fun의 lifetime parameter라고 한다.
-- `r`은 임의의 liftime `a`를 갖는 i32형 참조를 나타낸다.
+- `r`은 임의의 lifetime `a`를 갖는 i32형 참조를 나타낸다.
 - 반환되는 참조의 lifetime도 input 파라미터의 lifetime과 동일하다.
 
 
@@ -318,7 +345,11 @@ fn main() {
 
 함수 my_fun의 인자로 static 참조인 `STATIC` 참조를 넘기면 `'a`가 실질적으로는 `'static`이므로 `result`에는 static 참조가 할당되고 따라서 my_fun()이 호출되는 블록이 종료된 후에도 `result`는 dangling reference가 아니며 안전한 값을 가지고 있다.
 
-하지만 다음과 같이 lifetime이 `'static`이 아닌 참조를 인자로 넘기면, 반환값의 lifetime도 `'static`이 아니므로, my_fun()이 호출되는 블록이 종료되면 `result`는 dangling reference가 되며 컴파일에 실패한다.
+하지만 다음과 같이 lifetime이 `'static`이 아닌 참조를 인자로 넘기면, 반환값의 lifetime도 `'static`이 아니라 인자로 받은 참조와 동일한 lifetime을 갖게 된다.  
+my_fun()의 인자인 `&input`이 가리키는 값의 Owner인 `input`을 감싸고 있는 lexicl 블록이 종료되면,
+- `input`이 소멸되고
+- my_fun()의 반환값을 `rv`라고 할 때, my_fun()이 인자로 받은 `&input`과 동일한 lifetime을 갖는 `rv`도 사용될 수 없게 되므로,
+- `rv`를 할당받은 `result`는 lexical 블록 종료 이후에는 dangling reference가 되며 dangling reference인 `result`가 사용되면 컴파일 에러가 발생한다.
 
 ```rust
 fn my_fun<'a>(r: &'a i32) -> &'a i32 {
@@ -353,7 +384,7 @@ error[E0597]: `input` does not live long enough
 
 위에서 살펴본 것처럼 **`'a`는 암시적으로 `'static` 일 수도 있다.**
 
-하지만 명시적으로 `'static` 일 수는 없다. 다음과 같이 lifetime이 `'static` 인 static 참조를 인자를 넘기더라도, 파라미터의 lifetime은 `'a`이므로 **'`a`인 참조를 명시적으로 static mut 참조에 할당하면 컴파일 에러가 발생**한다. 
+하지만 명시적으로 `'static` 일 수는 없다. 다음과 같이 lifetime이 `'static` 인 static 참조를 인자를 넘기더라도, 파라미터의 lifetime은 `'a`이므로 **`'a`인 참조를 명시적으로 static mut 참조에 할당하면 컴파일 에러가 발생**한다. 
 
 ```rust
 static mut GLOBAL: &i32 = &111;
@@ -397,7 +428,7 @@ fn main() {
 [1, 2, 3]
 ```
 
-숫자를 원소로 하는 Slice의 타입은 `&[i32]`, `&[f64]` 등으로 표현한다.
+위와 같이 숫자를 원소로 하는 Slice의 타입은 `&[i32]`, `&[f64]` 등으로 표현한다.
 
 
 ```rust
@@ -410,7 +441,7 @@ fn main() {
 ell
 ```
 
-문자열의 Slice의 타입은 `&str`이며, 문자열 리터럴은 사실은 `&str` 타입이다.
+위와 같이 String의 Slice의 타입은 `&str`이며, `"Hello"`와 같은 문자열 리터럴은 사실은 `&str` 타입이다.
 
 
 # 불변성
@@ -467,23 +498,61 @@ TODO 구조화 된 데이터
 
 Rust에는 GC가 없으며, 자유 변수를 힙에 생성하지 않는다. 그럼 Rust는 자유 변수를 어떻게 capture해서 사용할 수 있을까?
 
-Rust에는 앞에서 살펴본 것처럼 변수의 라이프사이클에 소유권 개념이 있다. 상위 스코프에서 클로저를 사용할 때 `move` 키워드를 사용해서 자유 변수의 소유권을 클로저에 명시적으로 넘겨주면, 클로저는 자유 변수를 자기 스택으로 가져온다. 자유 변수가 Copy 타입이면 값을 자기 스택으로 복사해오고, non-Copy 타입이면 힙에 생성된 자료 구조를 가리키던 non-Copy 값을 자기 스택으로 가져와서, 상위 스코프가 종료되어 스택이 사라지더라도 클로저는 자기 스택에 보유하고 있는 자유 변수를 사용할 수 있다. 코드는 다음과 같다.
+Rust에는 앞에서 살펴본 것처럼 변수의 라이프사이클에 소유권 개념이 있다. 상위 스코프에서 클로저를 사용할 때 `move` 키워드를 사용해서 자유 변수의 소유권을 클로저에 명시적으로 넘겨주면, 클로저는 자유 변수를 자기 스택으로 가져온다. 자유 변수가 Copy 타입이면 값을 자기 스택으로 복사해오고, non-Copy 타입이면 힙에 생성된 자료 구조를 가리키던 non-Copy 값을 자기 스택으로 가져와서, 상위 스코프가 종료되어 스택이 사라지더라도 클로저는 자기 스택에 보유하고 있는 자유 변수를 통해 힙에 생성된 자료 구조를 사용할 수 있다. 코드는 다음과 같다.
 
 ```rust
-fn start_sorting_thread(mut cities: Vec<City>, stat: Statistic)
-    -> thread::JoinHandle<Vec<City>>
-{
-    let key_fn = move |city: &City| -> i64 { -city.get_statistic(stat) };
-
-    // 클로저 앞에 move 키워드를 붙여주면 자유 변수인 cities의 소유권이 클로저로 넘어가는 방식으로 capture가 일어난다.
-    thread::spawn(move || {  
-        cities.sort_by_key(key_fn);
-        cities
-    })
+fn main() {
+    let hello = String::from("  Hello  ");
+    
+    {
+        let trimmer = move |param: String| -> String { param.trim().to_owned() };
+        
+        println!("Trimmed by trimmer closure: [{:?}]", trimmer(hello));
+    }
 }
+
+
+//-----
+Trimmed by trimmer closure: ["Hello"]
 ```
 
-소유권이 클로저로 넘겨진 후에 non-Copy 타입인 `cities`는 상위 스코프에서 더 이상 사용될 수 없게 된다. 따라서 자유 변수는 공유되지 않으며 Rust가 자랑하는 안전성을 계속 유지할 수 있다.
+아래와 같이 hello 를 다시 사용하면 컴파일 에러가 발생한다.
+
+```rust
+fn main() {
+    let hello = String::from("  Hello  ");
+    
+    {
+        let trimmer = move |param: String| -> String { param.trim().to_owned() };
+        
+        println!("Trimmed by trimmer closure: [{:?}]", trimmer(hello));
+    }
+    
+    println!("hello: {:?}", hello);  // 여기!! hello 를 다시 사용 시도
+}
+
+//-----
+   Compiling playground v0.0.1 (/playground)
+error[E0382]: borrow of moved value: `hello`
+  --> src/main.rs:10:29
+   |
+2  |     let hello = String::from("  Hello  ");
+   |         ----- move occurs because `hello` has type `String`, which does not implement the `Copy` trait
+...
+7  |         println!("Trimmed by trimmer closure: [{:?}]", trimmer(hello));
+   |                                                                ----- value moved here
+...
+10 |     println!("hello: {:?}", hello);
+   |                             ^^^^^ value borrowed here after move
+   |
+   = note: this error originates in the macro `$crate::format_args_nl` which comes from the expansion of the macro `println` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+For more information about this error, try `rustc --explain E0382`.
+error: could not compile `playground` due to previous error
+```
+
+따라서 자유 변수는 공유되지 않으며 Rust가 자랑하는 안전성을 계속 유지할 수 있다.
+
 
 ## 함수의 타입과 클로저의 타입
 
@@ -561,6 +630,13 @@ Rust의 클로저는 가비지 컬렉션되지 않으며, Box나 Vec 또는 다�
 
     - 각 crate 폴더 아래에 있던 cargo.lock 파일과 target 디렉터리를 지우면, workspace 루트 바로 아래에 전체 workspace를 아우르는 cargo.lock 파일과 target 디렉터리가 생성된다.
 
+
+----
+<a rel="license" href="http://creativecommons.org/licenses/by-nc-sa/4.0/"><img alt="크리에이티브 커먼즈 라이선스" style="border-width:0" src="https://i.creativecommons.org/l/by-nc-sa/4.0/88x31.png" /></a>
+
+<a href='https://www.facebook.com/hanmomhanda' target='_blank'>HomoEfficio</a>가 작성한 이 저작물은
+
+<a rel="license" href="http://creativecommons.org/licenses/by-nc-sa/4.0/">크리에이티브 커먼즈 저작자표시-비영리-동일조건변경허락 4.0 국제 라이선스</a>에 따라 이용할 수 있습니다.
 
 
 

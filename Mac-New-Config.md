@@ -12,6 +12,8 @@
 
 ![Imgur](https://i.imgur.com/YV8wrwl.png)
 
+Monterey 에서는 Fn 키를 눌러도 환경설정으로는 불가능 -> https://andrewpage.tistory.com/95 참고
+
 ### CTRL-Command 전환
 
 ![Imgur](https://i.imgur.com/l5nEvbz.png)
@@ -33,13 +35,15 @@ $ vi DefaultKeyBinding.dict
 {
  /* Remap Home / End keys to be correct */
   "\UF729" = "moveToBeginningOfLine:"; /* Home */
-  "\UF72B" = "moveToEndOfLine:"; /* End */ 
-  "$\UF729" = "moveToBeginningOfLineAndModifySelection:"; /* Shift + Home */ 
-  "$\UF72B" = "moveToEndOfLineAndModifySelection:"; /* Shift + End */ 
-  "^\UF729" = "moveToBeginningOfDocument:"; /* Ctrl + Home */ 
-  "^\UF72B" = "moveToEndOfDocument:"; /* Ctrl + End */ 
-  "$^\UF729" = "moveToBeginningOfDocumentAndModifySelection:"; /* Shift + Ctrl + Home */ 
-  "$^\UF72B" = "moveToEndOfDocumentAndModifySelection:"; /* Shift + Ctrl + End */ 
+  "\UF72B" = "moveToEndOfLine:"; /* End */
+  "$\UF729" = "moveToBeginningOfLineAndModifySelection:"; /* Shift + Home */
+  "$\UF72B" = "moveToEndOfLineAndModifySelection:"; /* Shift + End */
+  "^\UF729" = "moveToBeginningOfDocument:"; /* Ctrl + Home */
+  "^\UF72B" = "moveToEndOfDocument:"; /* Ctrl + End */
+  "$^\UF729" = "moveToBeginningOfDocumentAndModifySelection:"; /* Shift + Ctrl + Home */
+  "$^\UF72B" = "moveToEndOfDocumentAndModifySelection:"; /* Shift + Ctrl + End */
+  "₩" = ("insertText:", "`");
+  "~₩" = ("insertText:", "₩");
 }
 
 ```
@@ -55,6 +59,12 @@ $ vi DefaultKeyBinding.dict
 터미널에서 `defaults write -g ApplePressAndHoldEnabled -bool false` 입력 후 애플리케이션 재실행
 
 참고: https://osxdaily.com/2011/08/04/enable-key-repeat-mac-os-x-lion/
+
+### F기능키
+
+아래와 같이 해줘야 인텔리제이 Alt+F12 같은 명령이랑 충돌이 발생하지 않는다
+
+![Imgur](https://i.imgur.com/HmeKLuH.png)
 
 
 ## 캡처 
@@ -78,7 +88,10 @@ git --version
 
 ### alias
 
+vi ~/.gitconfig 후 아래 내용 붙여넣기
+
 https://github.com/HomoEfficio/dev-tips/blob/master/Git-alias.md
+
 
 ### global .gitignore
 
